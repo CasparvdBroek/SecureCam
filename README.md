@@ -91,6 +91,121 @@ Android Device (Server)          Web Browser (Client)
 - The service will stop and the notification will be removed
 - All active connections will be terminated
 
+## API Endpoints
+
+The SecureCam server provides several HTTP endpoints for different use cases:
+
+### WebRTC Endpoints
+
+#### `GET /` or `GET /index.html`
+- **Purpose**: Main WebRTC client interface
+- **Response**: HTML page with WebRTC video player
+- **Usage**: Open in browser to view camera stream via WebRTC
+
+#### `POST /offer`
+- **Purpose**: WebRTC signaling - handle SDP offer from client
+- **Request Body**: JSON with SDP offer
+  ```json
+  {
+    "type": "offer",
+    "sdp": "v=0\r\no=- 1234567890 2 IN IP4 127.0.0.1\r\n..."
+  }
+  ```
+- **Response**: JSON with SDP answer
+  ```json
+  {
+    "type": "answer",
+    "sdp": "v=0\r\no=- 1234567890 2 IN IP4 127.0.0.1\r\n..."
+  }
+  ```
+
+#### `POST /ice-candidate`
+- **Purpose**: WebRTC signaling - handle ICE candidates
+- **Request Body**: JSON with ICE candidate data
+- **Response**: JSON confirmation
+  ```json
+  {
+    "type": "success",
+    "message": "GetStream Video SDK handles ICE internally"
+  }
+  ```
+
+### Status and Control Endpoints
+
+#### `GET /status`
+- **Purpose**: Get server and camera status
+- **Response**: JSON with status information
+  ```json
+  {
+    "status": "ok",
+    "message": "SecureCam Open Source WebRTC Server is running",
+    "timestamp": 1703123456789,
+    "video_ready": true,
+    "camera_ready": true
+  }
+  ```
+
+#### `POST /start-camera`
+- **Purpose**: Manually start camera initialization
+- **Response**: JSON with operation result
+  ```json
+  {
+    "status": "success",
+    "message": "Camera initialization started in background"
+  }
+  ```
+
+### Home Assistant Integration Endpoints
+
+#### `GET /snapshot`
+- **Purpose**: Get current camera frame as JPEG image
+- **Response**: JPEG image data
+- **Content-Type**: `image/jpeg`
+- **Usage**: Home Assistant generic camera integration
+
+#### `GET /stream`
+- **Purpose**: MJPEG video stream for Home Assistant
+- **Response**: Multipart MJPEG stream
+- **Content-Type**: `multipart/x-mixed-replace; boundary=frame`
+- **Usage**: Home Assistant generic camera integration
+
+#### `GET /camera-info`
+- **Purpose**: Get camera metadata for Home Assistant
+- **Response**: JSON with camera information
+  ```json
+  {
+    "name": "SecureCam",
+    "model": "Android Camera",
+    "manufacturer": "Open Source",
+    "camera_ready": true,
+    "streaming": true,
+    "frame_width": 640,
+    "frame_height": 480,
+    "snapshot_url": "http://192.168.1.100:8080/snapshot",
+    "stream_url": "http://192.168.1.100:8080/stream"
+  }
+  ```
+
+#### `GET /home-assistant`
+- **Purpose**: Home Assistant integration configuration page
+- **Response**: HTML page with setup instructions
+- **Usage**: Open in browser to get Home Assistant configuration
+
+### Error Responses
+
+All endpoints return standard HTTP error codes:
+- `400 Bad Request`: Invalid request format
+- `404 Not Found`: Endpoint not found
+- `500 Internal Server Error`: Server error
+
+Error responses include JSON with error details:
+```json
+{
+  "status": "error",
+  "message": "Error description"
+}
+```
+
 ## Technical Details
 
 ### WebRTC Implementation
@@ -103,7 +218,7 @@ Android Device (Server)          Web Browser (Client)
 
 ### Network Configuration
 
-- **Port**: 8080 (configurable in WebRTCSignalingServer.java)
+- **Port**: 8080 (configurable in SimpleHttpServer.java)
 - **Protocol**: HTTP for signaling, WebRTC for media
 - **CORS**: Enabled for cross-origin requests
 - **Security**: Local network only (no external access)

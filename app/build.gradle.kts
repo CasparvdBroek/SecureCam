@@ -10,8 +10,8 @@ android {
         applicationId = "com.casparvdbroek.securecam"
         minSdk = 24
         targetSdk = 33
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = 2
+        versionName = "1.01"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -57,7 +57,7 @@ dependencies {
     implementation("androidx.camera:camera-lifecycle:1.3.0")
     implementation("androidx.camera:camera-view:1.3.0")
     
-        // ExifInterface for image metadata (Apache 2.0 License)
+    // ExifInterface for image metadata (Apache 2.0 License)
     implementation("androidx.exifinterface:exifinterface:1.3.6")
     
     testImplementation(libs.junit)
