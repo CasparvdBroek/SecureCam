@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SecureCam WebRTC Client</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+        }
+        #videoElement {
+            width: 100%;
+            max-width: 640px;
+            height: auto;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            margin: 20px auto;
+            display: block;
+        }
+        .controls {
+            text-align: center;
+            margin: 20px 0;
+        }
+        button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            margin: 5px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        button:disabled {
+            background-color: #6c757d;
+            cursor: not-allowed;
+        }
+        .status {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 4px;
+            text-align: center;
+        }
+        .status.connecting {
+            background-color: #fff3cd;
+            color: #856404;
+        }
+        .status.connected {
+            background-color: #d4edda;
+            color: #155724;
+        }
+        .status.error {
+            background-color: #f8d7da;
+            color: #721c24;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>SecureCam WebRTC Client</h1>
+        
+        <div class="status" id="status">Ready to connect</div>
+        
+        <div class="controls">
+            <button id="connectBtn" onclick="connectToCamera()">Connect to Camera</button>
+            <button id="disconnectBtn" onclick="disconnect()" disabled>Disconnect</button>
+        </div>
+        
+        <video id="videoElement" autoplay playsinline></video>
+        
+        <div class="controls">
+            <p>This page connects to the SecureCam WebRTC server running on your Android device.</p>
+            <p>Make sure the SecureCam app is running and the camera server is started.</p>
+        </div>
+    </div>
+
+    <script>
+        let peerConnection;
+        let localStream;
+        const videoElement = document.getElementById('videoElement');
+        const statusDiv = document.getElementById('status');
+        const connectBtn = document.getElementById('connectBtn');
+        const disconnectBtn = document.getElementById('disconnectBtn');
+
+        // WebRTC configuration
+        const configuration = {
+            iceServers: [
+                { urls: 'stun:stun.l.google.com:19302' }
+            ]
+        };
+
+        function updateStatus(message, type = '') {
+            statusDiv.textContent = message;
+            statusDiv.className = 'status ' + type;
+        }
+
+        async function connectToCamera() {
+            try {
+                updateStatus('Connecting to camera...', 'connecting');
+                connectBtn.disabled = true;
+
+                // Create peer connection
+                peerConnection = new RTCPeerConnection(configuration);
+
+                // Handle incoming streams
+                peerConnection.ontrack = function(event) {
+                    console.log('Received remote stream');
+                    videoElement.srcObject = event.streams[0];
+                    localStream = event.streams[0];
+                };
+
+                // Handle ICE candidates
+                peerConnection.onicecandidate = function(event) {
+                    if (event.candidate) {
+                        console.log('ICE candidate:', event.candidate);
+                        // Send ICE candidate to server
+                        sendIceCandidate(event.candidate);
+                    }
+                };
+
+                // Handle connection state changes
+                peerConnection.onconnectionstatechange = function() {
+                    console.log('Connection state:', peerConnection.connectionState);
+                    if (peerConnection.connectionState === 'connected') {
+                        updateStatus('Connected to camera!', 'connected');
+                        disconnectBtn.disabled = false;
+                    } else if (peerConnection.connectionState === 'failed') {
+                        updateStatus('Connection failed', 'error');
+                        connectBtn.disabled = false;
+                    }
+                };
+
+                // Create offer
+                const offer = await peerConnection.createOffer({
+                    offerToReceiveVideo: true,
+                    offerToReceiveAudio: true
+                });
+                await peerConnection.setLocalDescription(offer);
+
+                // Send offer to server
+                await sendOffer(offer);
+
+            } catch (error) {
+                console.error('Error connecting to camera:', error);
+                updateStatus('Error: ' + error.message, 'error');
+                connectBtn.disabled = false;
+            }
+        }
+
+        async function sendOffer(offer) {
+            try {
+                const response = await fetch('/offer', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        type: 'offer',
+                        sdp: offer.sdp
+                    })
+                });
+
+                if (response.ok) {
+                    const answer = await response.json();
+                    await peerConnection.setRemoteDescription(new RTCSessionDescription(answer));
+                } else {
+                    throw new Error('Failed to send offer');
+                }
+            } catch (error) {
+                console.error('Error sending offer:', error);
+                updateStatus('Error sending offer: ' + error.message, 'error');
+            }
+        }
+
+        async function sendIceCandidate(candidate) {
+            try {
+                await fetch('/ice-candidate', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        candidate: candidate.candidate,
+                        sdpMLineIndex: candidate.sdpMLineIndex,
+                        sdpMid: candidate.sdpMid
+                    })
+                });
+            } catch (error) {
+                console.error('Error sending ICE candidate:', error);
+            }
+        }
+
+        function disconnect() {
+            if (peerConnection) {
+                peerConnection.close();
+                peerConnection = null;
+            }
+            if (localStream) {
+                localStream.getTracks().forEach(track => track.stop());
+                localStream = null;
+            }
+            videoElement.srcObject = null;
+            updateStatus('Disconnected');
+            connectBtn.disabled = false;
+            disconnectBtn.disabled = true;
+        }
+
+        // Auto-connect when page loads (optional)
+        // window.onload = function() {
+        //     setTimeout(connectToCamera, 1000);
+        // };
+    </script>
+</body>
+</html> 
