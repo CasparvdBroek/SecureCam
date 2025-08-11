@@ -138,11 +138,13 @@ public class MainActivity extends AppCompatActivity {
             statusText.setText(getString(R.string.service_status_running));
             statusText.setTextColor(getResources().getColor(android.R.color.holo_green_dark));
             serverUrlText.setText("WebRTC Server: http://" + getLocalIpAddress() + ":8080");
+            serverUrlText.setVisibility(View.VISIBLE);
             startServiceButton.setEnabled(false);
             stopServiceButton.setEnabled(true);
         } else {
             statusText.setText(getString(R.string.service_status_stopped));
             statusText.setTextColor(getResources().getColor(android.R.color.black));
+            serverUrlText.setVisibility(View.GONE);
             startServiceButton.setEnabled(true);
             stopServiceButton.setEnabled(false);
         }
