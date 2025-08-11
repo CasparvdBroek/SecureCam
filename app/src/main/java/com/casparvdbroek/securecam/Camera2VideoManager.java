@@ -35,7 +35,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * 100% Open Source - Uses official Android libraries
  */
 public class Camera2VideoManager {
-    private static final String TAG = "Camera2Video";
+    private static final String TAG = Constants.TAG_CAMERA2_VIDEO;
     
     private final Context context;
     private final AtomicBoolean isInitialized = new AtomicBoolean(false);
@@ -60,9 +60,9 @@ public class Camera2VideoManager {
     // Camera frame data
     private byte[] lastFrameData;
     private byte[] lastJpegData;
-    private int frameWidth = 640;
-    private int frameHeight = 480;
-    private int frameRate = 30;
+    private int frameWidth = Constants.DEFAULT_FRAME_WIDTH;
+    private int frameHeight = Constants.DEFAULT_FRAME_HEIGHT;
+    private int frameRate = Constants.DEFAULT_FRAME_RATE;
     
     // WebRTC signaling (kept for compatibility)
     private String localSdp;

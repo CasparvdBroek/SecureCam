@@ -17,9 +17,9 @@ import java.net.NetworkInterface;
 import java.util.Enumeration;
 
 public class ForegroundService extends Service {
-    private static final String TAG = "ForegroundService";
-    private static final String CHANNEL_ID = "SecureCamServiceChannel";
-    private static final int NOTIFICATION_ID = 1;
+    private static final String TAG = Constants.TAG_FOREGROUND_SERVICE;
+    private static final String CHANNEL_ID = Constants.SERVICE_CHANNEL_ID;
+    private static final int NOTIFICATION_ID = Constants.SERVICE_NOTIFICATION_ID;
 
     private Camera2VideoManager videoManager;
     private SimpleHttpServer httpServer;
@@ -282,7 +282,7 @@ public class ForegroundService extends Service {
             PendingIntent.FLAG_IMMUTABLE
         );
         
-        String serverUrl = "http://" + getLocalIpAddress() + ":8080";
+        String serverUrl = NetworkUtils.getServerUrl(Constants.HTTP_SERVER_PORT);
         
         NotificationCompat.Builder builder = new NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle("SecureCam Camera Server")
@@ -300,22 +300,5 @@ public class ForegroundService extends Service {
         Log.d(TAG, "Performing background work");
     }
 
-    private String getLocalIpAddress() {
-        try {
-            Enumeration<NetworkInterface> networkInterfaces = NetworkInterface.getNetworkInterfaces();
-            while (networkInterfaces.hasMoreElements()) {
-                NetworkInterface networkInterface = networkInterfaces.nextElement();
-                Enumeration<InetAddress> addresses = networkInterface.getInetAddresses();
-                while (addresses.hasMoreElements()) {
-                    InetAddress address = addresses.nextElement();
-                    if (!address.isLoopbackAddress() && address.getHostAddress().indexOf(':') < 0) {
-                        return address.getHostAddress();
-                    }
-                }
-            }
-        } catch (Exception e) {
-            Log.e(TAG, "Error getting local IP address", e);
-        }
-        return "127.0.0.1";
-    }
+
 } 

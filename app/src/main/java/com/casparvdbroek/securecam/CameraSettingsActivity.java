@@ -17,7 +17,7 @@ import androidx.appcompat.app.AppCompatActivity;
 import java.util.List;
 
 public class CameraSettingsActivity extends AppCompatActivity {
-    private static final String TAG = "CameraSettingsActivity";
+    private static final String TAG = Constants.TAG_CAMERA_SETTINGS;
 
     private CameraSettings cameraSettings;
     private Camera2VideoManager videoManager;

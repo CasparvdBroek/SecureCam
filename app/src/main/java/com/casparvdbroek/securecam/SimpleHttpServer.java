@@ -19,8 +19,8 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 public class SimpleHttpServer {
-    private static final String TAG = "SimpleHttpServer";
-    private static final int PORT = 8080;
+    private static final String TAG = Constants.TAG_HTTP_SERVER;
+    private static final int PORT = Constants.HTTP_SERVER_PORT;
     
     private ServerSocket serverSocket;
     private ExecutorService executor;
@@ -50,7 +50,7 @@ public class SimpleHttpServer {
                 isRunning = true;
                 
                 Log.d(TAG, "HTTP Server started on port " + PORT);
-                Log.d(TAG, "Local IP: " + getLocalIpAddress());
+                Log.d(TAG, "Local IP: " + NetworkUtils.getLocalIpAddress());
                 Log.d(TAG, "Server URL: " + getServerUrl());
                 
                 while (isRunning && !serverSocket.isClosed()) {
@@ -74,21 +74,19 @@ public class SimpleHttpServer {
     
     private void handleClient(Socket clientSocket) {
         executor.execute(() -> {
-            try {
-                BufferedReader reader = new BufferedReader(
+            try (BufferedReader reader = new BufferedReader(
                     new InputStreamReader(clientSocket.getInputStream()));
-                OutputStream outputStream = clientSocket.getOutputStream();
+                 OutputStream outputStream = clientSocket.getOutputStream()) {
                 
                 // Read HTTP request
                 String requestLine = reader.readLine();
                 if (requestLine == null) {
-                    clientSocket.close();
                     return;
                 }
                 
                 String[] parts = requestLine.split(" ");
                 if (parts.length < 2) {
-                    sendErrorResponse(outputStream, "400 Bad Request", "Invalid request format");
+                    sendErrorResponse(outputStream, Constants.HTTP_BAD_REQUEST, "Invalid request format");
                     return;
                 }
                 
@@ -100,7 +98,11 @@ public class SimpleHttpServer {
                 int contentLength = 0;
                 while ((line = reader.readLine()) != null && !line.isEmpty()) {
                     if (line.toLowerCase().startsWith("content-length:")) {
-                        contentLength = Integer.parseInt(line.split(":")[1].trim());
+                        try {
+                            contentLength = Integer.parseInt(line.split(":")[1].trim());
+                        } catch (NumberFormatException e) {
+                            Log.w(TAG, "Invalid content-length header: " + line);
+                        }
                     }
                 }
                 
@@ -121,13 +123,9 @@ public class SimpleHttpServer {
                 handleRequest(method, path, body.toString(), outputStream);
                 
             } catch (IOException e) {
-                Log.e(TAG, "Error handling client", e);
+                Utils.logError(TAG, "Error handling client", e, "Client socket: " + clientSocket.getInetAddress());
             } finally {
-                try {
-                    clientSocket.close();
-                } catch (IOException e) {
-                    Log.e(TAG, "Error closing client socket", e);
-                }
+                Utils.closeQuietly(clientSocket, TAG);
             }
         });
     }
@@ -360,7 +358,11 @@ public class SimpleHttpServer {
     }
     
     private void sendResponse(OutputStream outputStream, String content, String contentType) throws IOException {
-        String response = "HTTP/1.1 200 OK\r\n" +
+        Utils.requireNonNull(outputStream, "outputStream");
+        Utils.requireNonNull(content, "content");
+        Utils.requireNonNull(contentType, "contentType");
+        
+        String response = "HTTP/1.1 " + Constants.HTTP_OK + "\r\n" +
                          "Content-Type: " + contentType + "; charset=UTF-8\r\n" +
                          "Access-Control-Allow-Origin: *\r\n" +
                          "Access-Control-Allow-Methods: GET, POST, OPTIONS\r\n" +
@@ -373,14 +375,19 @@ public class SimpleHttpServer {
         outputStream.flush();
     }
     
-         private void sendErrorResponse(OutputStream outputStream, String status, String message) throws IOException {
-         String response = "HTTP/1.1 " + status + "\r\n" +
-                          "Content-Type: application/json\r\n" +
-                          "Access-Control-Allow-Origin: *\r\n" +
-                          "\r\n" +
-                          "{\"status\":\"error\", \"message\":\"" + message + "\"}";
-         outputStream.write(response.getBytes());
-     }
+    private void sendErrorResponse(OutputStream outputStream, String status, String message) throws IOException {
+        Utils.requireNonNull(outputStream, "outputStream");
+        Utils.requireNonNull(status, "status");
+        Utils.requireNonNull(message, "message");
+        
+        String response = "HTTP/1.1 " + status + "\r\n" +
+                         "Content-Type: " + Constants.CONTENT_TYPE_JSON + "\r\n" +
+                         "Access-Control-Allow-Origin: *\r\n" +
+                         "\r\n" +
+                         "{\"status\":\"error\", \"message\":\"" + message + "\"}";
+        outputStream.write(response.getBytes("UTF-8"));
+        outputStream.flush();
+    }
     
     private String getWebRTCClientHTML() {
         return "<!DOCTYPE html>\n" +
@@ -538,18 +545,7 @@ public class SimpleHttpServer {
     }
     
     public String getLocalIpAddress() {
-        try {
-            for (NetworkInterface networkInterface : Collections.list(NetworkInterface.getNetworkInterfaces())) {
-                for (InetAddress address : Collections.list(networkInterface.getInetAddresses())) {
-                    if (!address.isLoopbackAddress() && address.getHostAddress().indexOf(':') < 0) {
-                        return address.getHostAddress();
-                    }
-                }
-            }
-        } catch (Exception e) {
-            Log.e(TAG, "Error getting local IP address", e);
-        }
-        return "127.0.0.1";
+        return NetworkUtils.getLocalIpAddress();
     }
     
     public String getServerUrl() {
@@ -567,16 +563,15 @@ public class SimpleHttpServer {
     
     public void stop() {
         isRunning = false;
+        
         if (serverSocket != null && !serverSocket.isClosed()) {
-            try {
-                serverSocket.close();
-            } catch (IOException e) {
-                Log.e(TAG, "Error closing server socket", e);
-            }
+            Utils.closeQuietly(serverSocket, TAG);
         }
+        
         if (executor != null) {
             executor.shutdown();
         }
+        
         Log.d(TAG, "HTTP Server stopped");
     }
     
