@@ -493,9 +493,11 @@ public class Camera2VideoManager {
     }
     
     private byte[] applyExifRotation(byte[] jpegData, int rotation) {
+        Bitmap bitmap = null;
+        Bitmap rotatedBitmap = null;
         try {
             // Convert JPEG to Bitmap
-            Bitmap bitmap = BitmapFactory.decodeByteArray(jpegData, 0, jpegData.length);
+            bitmap = BitmapFactory.decodeByteArray(jpegData, 0, jpegData.length);
             if (bitmap == null) {
                 Log.e(TAG, "Failed to decode JPEG to bitmap");
                 return jpegData;
@@ -506,22 +508,26 @@ public class Camera2VideoManager {
             matrix.postRotate(rotation);
             
             // Apply rotation
-            Bitmap rotatedBitmap = Bitmap.createBitmap(
+            rotatedBitmap = Bitmap.createBitmap(
                 bitmap, 0, 0, bitmap.getWidth(), bitmap.getHeight(), matrix, true);
             
             // Convert back to JPEG
             ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
             rotatedBitmap.compress(Bitmap.CompressFormat.JPEG, 90, outputStream);
             
-            // Clean up bitmaps
-            bitmap.recycle();
-            rotatedBitmap.recycle();
-            
             return outputStream.toByteArray();
             
         } catch (Exception e) {
             Log.e(TAG, "Failed to apply bitmap rotation", e);
             return jpegData;
+        } finally {
+            // Clean up bitmaps in finally block to ensure they're always recycled
+            if (bitmap != null) {
+                bitmap.recycle();
+            }
+            if (rotatedBitmap != null) {
+                rotatedBitmap.recycle();
+            }
         }
     }
     

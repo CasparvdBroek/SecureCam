@@ -17,6 +17,7 @@ import java.net.Socket;
 import java.util.Collections;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 public class SimpleHttpServer {
     private static final String TAG = Constants.TAG_HTTP_SERVER;
@@ -570,6 +571,19 @@ public class SimpleHttpServer {
         
         if (executor != null) {
             executor.shutdown();
+            try {
+                if (!executor.awaitTermination(5, TimeUnit.SECONDS)) {
+                    Log.w(TAG, "Executor did not terminate in time, forcing shutdown");
+                    executor.shutdownNow();
+                    if (!executor.awaitTermination(5, TimeUnit.SECONDS)) {
+                        Log.e(TAG, "Executor did not terminate even after force shutdown");
+                    }
+                }
+            } catch (InterruptedException e) {
+                Log.e(TAG, "Executor shutdown interrupted", e);
+                executor.shutdownNow();
+                Thread.currentThread().interrupt();
+            }
         }
         
         Log.d(TAG, "HTTP Server stopped");

@@ -65,9 +65,19 @@ public class ForegroundService extends Service {
         super.onDestroy();
         Log.d(TAG, "Service destroyed");
         isRunning = false;
-        if (watchdogThread != null) {
+        
+        // Properly terminate watchdog thread
+        if (watchdogThread != null && watchdogThread.isAlive()) {
             watchdogThread.interrupt();
+            try {
+                watchdogThread.join(5000); // Wait up to 5 seconds for termination
+            } catch (InterruptedException e) {
+                Log.e(TAG, "Watchdog thread join interrupted", e);
+                Thread.currentThread().interrupt();
+            }
+            watchdogThread = null;
         }
+        
         cleanupVideo();
     }
 
@@ -131,7 +141,7 @@ public class ForegroundService extends Service {
             Log.d(TAG, "Camera started successfully");
             
             // Go live after a short delay
-            new Thread(() -> {
+            Thread cameraStartupThread = new Thread(() -> {
                 try {
                     Thread.sleep(1000); // Shorter delay for Camera2
                     Log.d(TAG, "Going live...");
@@ -147,7 +157,9 @@ public class ForegroundService extends Service {
                 } catch (Exception e) {
                     Log.e(TAG, "Failed to start camera", e);
                 }
-            }).start();
+            });
+            cameraStartupThread.setName("CameraStartup");
+            cameraStartupThread.start();
             
         } catch (Exception e) {
             Log.e(TAG, "Failed to start camera", e);
@@ -155,8 +167,19 @@ public class ForegroundService extends Service {
     }
 
     private void startWatchdog() {
+        // Properly terminate existing watchdog thread if it exists
+        if (watchdogThread != null && watchdogThread.isAlive()) {
+            watchdogThread.interrupt();
+            try {
+                watchdogThread.join(5000); // Wait up to 5 seconds for termination
+            } catch (InterruptedException e) {
+                Log.e(TAG, "Watchdog thread join interrupted", e);
+                Thread.currentThread().interrupt();
+            }
+        }
+        
         watchdogThread = new Thread(() -> {
-            while (isRunning) {
+            while (isRunning && !Thread.currentThread().isInterrupted()) {
                 try {
                     Thread.sleep(15000); // Check every 15 seconds (less aggressive)
                     
@@ -214,7 +237,7 @@ public class ForegroundService extends Service {
             videoManager.initialize();
             
             // Start camera with proper timing - camera initialization is asynchronous
-            new Thread(() -> {
+            Thread restartThread = new Thread(() -> {
                 try {
                     Thread.sleep(1000); // Wait for initialization to complete
                     Log.d(TAG, "Starting camera after initialization delay...");
@@ -234,7 +257,9 @@ public class ForegroundService extends Service {
                 } catch (Exception e) {
                     Log.e(TAG, "Failed to restart camera with timing", e);
                 }
-            }).start();
+            });
+            restartThread.setName("CameraRestart");
+            restartThread.start();
             
         } catch (Exception e) {
             Log.e(TAG, "Failed to restart video manager", e);
